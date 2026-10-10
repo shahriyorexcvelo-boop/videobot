@@ -57,11 +57,12 @@ async def setup_bot_commands(bot: Bot):
     """
     commands = [
         BotCommand(command="start", description="🚀 Botni ishga tushirish"),
+        BotCommand(command="mp3", description="🎵 MP3 audio yuklash"),
         BotCommand(command="help", description="📖 Qo'llanma va yordam"),
         BotCommand(command="about", description="ℹ️ Bot haqida ma'lumot"),
     ]
     await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
-    logger.info("Bot Menu buyruqlari muvaffaqiyatli o'rnatildi (/start, /help, /about)!")
+    logger.info("Bot Menu buyruqlari muvaffaqiyatli o'rnatildi (/start, /mp3, /help, /about)!")
 
 
 async def main():

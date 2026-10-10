@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, Callable
 
 from telethon import TelegramClient
-from telethon.tl.types import DocumentAttributeVideo
+from telethon.tl.types import DocumentAttributeVideo, DocumentAttributeAudio
 from config import API_ID, API_HASH, BOT_TOKEN, BASE_DIR
 
 logger = logging.getLogger(__name__)
@@ -70,3 +70,45 @@ async def send_large_video(
     )
 
     return message
+
+
+async def send_large_audio(
+    chat_id: int,
+    file_path: Path,
+    caption: str,
+    title: Optional[str] = None,
+    performer: Optional[str] = None,
+    duration: Optional[int] = None,
+    thumb_path: Optional[Path] = None,
+    progress_callback: Optional[Callable[[int, int], None]] = None
+):
+    """
+    Katta hajmdagi MP3 audio fayllarni (50 MB dan katta) Telethon MTProto orqali
+    Telegram audio pleerida to'liq ijro etiladigan qilib yuboradi.
+    """
+    client = await get_telethon_client()
+
+    logger.info(f"Telethon orqali audio yuborilmoqda: {file_path.name} (title: {title}, duration: {duration}s)")
+
+    audio_attributes = [
+        DocumentAttributeAudio(
+            duration=int(duration or 0),
+            voice=False,
+            title=title or "Audio",
+            performer=performer or "YouTube"
+        )
+    ]
+
+    thumb_file = str(thumb_path) if thumb_path and thumb_path.exists() else None
+
+    message = await client.send_file(
+        entity=chat_id,
+        file=file_path,
+        caption=caption,
+        thumb=thumb_file,
+        attributes=audio_attributes,
+        progress_callback=progress_callback
+    )
+
+    return message
+

@@ -62,6 +62,9 @@ def extract_first_url(text: str) -> Optional[str]:
     """
     if not text:
         return None
+    # Apple/Telegram smart punctuation (en-dash, em-dash) ni to'g'rilash
+    text = text.replace("—", "---").replace("–", "--")
+    text = text.replace("\u2212", "-").replace("\u2010", "-").replace("\u2011", "-").replace("\u2012", "-")
     match = SUPPORTED_URL_PATTERN.search(text)
     if not match:
         return None
@@ -72,9 +75,14 @@ def extract_first_url(text: str) -> Optional[str]:
 def normalize_url(url: str) -> str:
     """
     YouTube Shorts va qisqa havolalarni to'liq watch formatiga keltiradi.
-    Bu YouTube'ning visionos va bot blokirovkalarini oldini oladi.
+    Apple/Telegram smart punctuation (en-dash, em-dash) larni to'g'rilaydi.
     """
+    if not url:
+        return ""
     try:
+        url = url.replace("—", "---").replace("–", "--")
+        url = url.replace("\u2212", "-").replace("\u2010", "-").replace("\u2011", "-").replace("\u2012", "-")
+
         if "/shorts/" in url:
             short_id = url.split("/shorts/")[1].split("?")[0].split("/")[0]
             return f"https://www.youtube.com/watch?v={short_id}"
@@ -507,3 +515,178 @@ async def download_media(
 ) -> Dict[str, Any]:
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _sync_download, url, target_height, progress_callback)
+
+
+def _sync_download_audio(
+    url: str,
+    progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
+) -> Dict[str, Any]:
+    """
+    Havoladan audioni eng yuqori sifatda MP3 formatida yuklab oladi,
+    ID3 metadata va muqova (cover/thumbnail) ni qo'shadi.
+    """
+    clean_url = normalize_url(url)
+    file_id = uuid.uuid4().hex[:10]
+    output_template = str(DOWNLOAD_DIR / f"audio_{file_id}_%(id)s.%(ext)s")
+
+    ffmpeg_path = get_ffmpeg_binary()
+
+    def ytdl_progress_hook(d: Dict[str, Any]):
+        if progress_callback and d.get("status") == "downloading":
+            total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+            downloaded = d.get("downloaded_bytes", 0)
+            percent = (downloaded / total * 100) if total > 0 else 0.0
+            eta = d.get("eta")
+            speed = d.get("speed")
+            progress_callback({
+                "status": "downloading",
+                "percent": percent,
+                "eta": eta,
+                "speed": speed,
+                "downloaded": downloaded,
+                "total": total,
+            })
+
+    ydl_opts = _build_base_ydl_opts()
+    ydl_opts.update({
+        "outtmpl": output_template,
+        "progress_hooks": [ytdl_progress_hook],
+        "format": "bestaudio/best",
+        "writethumbnail": True,
+    })
+
+    if ffmpeg_path:
+        ydl_opts["ffmpeg_location"] = ffmpeg_path
+        ydl_opts["postprocessors"] = [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            },
+            {
+                "key": "FFmpegMetadata",
+                "add_metadata": True,
+            },
+            {
+                "key": "FFmpegThumbnailsConvertor",
+                "format": "jpg",
+            }
+        ]
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(clean_url, download=True)
+            if not info:
+                raise DownloadFailedError("Audio ma'lumotlarini olib bo'lmadi.")
+
+            # Yuklangan MP3 faylni aniqlash
+            downloaded_file = None
+            if "requested_downloads" in info and info["requested_downloads"]:
+                downloaded_file = info["requested_downloads"][0].get("filepath")
+
+            if not downloaded_file or not os.path.exists(downloaded_file):
+                mp3_files = list(DOWNLOAD_DIR.glob(f"audio_{file_id}_*.mp3"))
+                if mp3_files:
+                    downloaded_file = str(mp3_files[0])
+
+            if not downloaded_file or not os.path.exists(downloaded_file):
+                raise DownloadFailedError("MP3 audio fayli yuklab olinmadi.")
+
+            # Muqova rasmini (thumbnail) qidirish va kerak bo'lsa JPG ga aylantirish
+            thumb_path = None
+            thumb_files = list(DOWNLOAD_DIR.glob(f"audio_{file_id}_*.jpg"))
+            if not thumb_files:
+                thumb_files = list(DOWNLOAD_DIR.glob(f"audio_{file_id}_*.jpeg"))
+            if not thumb_files:
+                other_thumbs = list(DOWNLOAD_DIR.glob(f"audio_{file_id}_*.webp")) + list(DOWNLOAD_DIR.glob(f"audio_{file_id}_*.png"))
+                if other_thumbs and ffmpeg_path:
+                    src = other_thumbs[0]
+                    dst = src.with_suffix(".jpg")
+                    try:
+                        subprocess.run([
+                            ffmpeg_path, "-y", "-i", str(src),
+                            "-vf", "scale=320:-2",
+                            "-q:v", "2",
+                            str(dst)
+                        ], capture_output=True)
+                        if dst.exists():
+                            thumb_files = [dst]
+                            src.unlink(missing_ok=True)
+                    except Exception as te:
+                        logger.warning(f"Audio muqovasini o'tkazishda xatolik: {te}")
+
+            if thumb_files and thumb_files[0].exists():
+                thumb_path = thumb_files[0]
+
+            duration = info.get("duration") or 0
+            if not duration and ffmpeg_path:
+                try:
+                    res = subprocess.run([ffmpeg_path, "-i", str(downloaded_file)], capture_output=True, text=True)
+                    dur_match = re.search(r'Duration:\s*(\d+):(\d+):(\d+\.?\d*)', res.stderr)
+                    if dur_match:
+                        h, m, s = dur_match.groups()
+                        duration = int(int(h) * 3600 + int(m) * 60 + float(s))
+                except Exception:
+                    pass
+
+            return {
+                "file_path": Path(downloaded_file),
+                "thumb_path": thumb_path,
+                "file_size": os.path.getsize(downloaded_file),
+                "title": info.get("title") or "Audio",
+                "duration": duration,
+                "uploader": info.get("uploader") or info.get("channel") or info.get("artist") or "YouTube",
+            }
+
+    except yt_dlp.utils.DownloadError as e:
+        error_msg = str(e)
+        logger.warning(f"yt-dlp audio yuklash xatosi: {error_msg}. Zaxira usul bilan qayta urinilmoqda...")
+        # Zaxira urinish
+        try:
+            fallback_opts = _build_base_ydl_opts()
+            fallback_opts.update({
+                "outtmpl": output_template,
+                "progress_hooks": [ytdl_progress_hook],
+                "format": "best",
+            })
+            if ffmpeg_path:
+                fallback_opts["ffmpeg_location"] = ffmpeg_path
+                fallback_opts["postprocessors"] = [
+                    {
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": "mp3",
+                        "preferredquality": "192",
+                    }
+                ]
+
+            with yt_dlp.YoutubeDL(fallback_opts) as ydl_fb:
+                info = ydl_fb.extract_info(clean_url, download=True)
+                mp3_files = list(DOWNLOAD_DIR.glob(f"audio_{file_id}_*.mp3"))
+                if mp3_files:
+                    downloaded_file = str(mp3_files[0])
+                    return {
+                        "file_path": Path(downloaded_file),
+                        "thumb_path": None,
+                        "file_size": os.path.getsize(downloaded_file),
+                        "title": info.get("title") or "Audio" if info else "Audio",
+                        "duration": info.get("duration") or 0 if info else 0,
+                        "uploader": info.get("uploader") or info.get("channel") if info else "YouTube",
+                    }
+        except Exception as fb_err:
+            logger.error(f"Zaxira audio yuklash ham xato berdi: {fb_err}")
+
+        raise DownloadFailedError(f"Audio yuklab olishda xatolik yuz berdi: {error_msg}")
+    except DownloaderException:
+        raise
+    except Exception as e:
+        logger.exception(f"Kutilmagan audio yuklash xatoligi: {e}")
+        raise DownloadFailedError(f"Kutilmagan xatolik: {e}")
+
+
+async def download_audio(
+    url: str,
+    progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
+) -> Dict[str, Any]:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _sync_download_audio, url, progress_callback)
+
