@@ -155,7 +155,11 @@ def _build_base_ydl_opts() -> Dict[str, Any]:
         "extractor_retries": 1,
         "file_access_retries": 1,
         "fragment_retries": 2,
-        "socket_timeout": 20,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios"],
+            }
+        },
         "http_headers": {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

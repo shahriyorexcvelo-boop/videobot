@@ -55,12 +55,12 @@ async def handle_url_message(message: Message):
     session_id = uuid.uuid4().hex[:8]
     URL_SESSIONS[session_id] = url
 
-    # Tugmalarni BIR LAHZADA (0.05 soniyada) foydalanuvchiga chiqarish
+    # Tugmalarni BIR LAHZADA (0.05 soniyada) bir xil chiroyli rangda chiqarish
     buttons = [
-        InlineKeyboardButton(text="📹 360p", callback_data=f"dl:360:{session_id}", style="success"),
+        InlineKeyboardButton(text="📹 360p", callback_data=f"dl:360:{session_id}", style="primary"),
         InlineKeyboardButton(text="📹 480p", callback_data=f"dl:480:{session_id}", style="primary"),
-        InlineKeyboardButton(text="🟢 720p (HD)", callback_data=f"dl:720:{session_id}", style="success"),
-        InlineKeyboardButton(text="💎 1080p (Full HD)", callback_data=f"dl:1080:{session_id}", style="primary"),
+        InlineKeyboardButton(text="📹 720p (HD)", callback_data=f"dl:720:{session_id}", style="primary"),
+        InlineKeyboardButton(text="📹 1080p (Full HD)", callback_data=f"dl:1080:{session_id}", style="primary"),
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons[:2], buttons[2:]])
 
