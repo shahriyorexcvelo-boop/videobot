@@ -157,7 +157,7 @@ def _build_base_ydl_opts() -> Dict[str, Any]:
         "fragment_retries": 2,
         "extractor_args": {
             "youtube": {
-                "player_client": ["visionos", "android", "ios"],
+                "player_client": ["android", "android_vr"],
             }
         },
         "http_headers": {
@@ -450,7 +450,7 @@ def _sync_download(
                 "format": f"best[height<={target_height}]/best",
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["android", "ios"],
+                        "player_client": ["android", "android_vr"],
                     }
                 },
             })

@@ -239,8 +239,16 @@ async def handle_quality_choice(call: CallbackQuery):
 
     except Exception as e:
         logger.exception(f"Yuklashda xato: {e}")
+        err_text = str(e)
+        if "sign in to confirm" in err_text.lower():
+            friendly_msg = "❌ <b>YouTube cheklovi:</b> Ushbu video uchun avtorizatsiya talab qilinmoqda."
+        elif "private" in err_text.lower():
+            friendly_msg = "🔒 <b>Ushbu video yopiq (private) hisobga tegishli.</b>"
+        else:
+            friendly_msg = "❌ <b>Videoni yuklab bo'lmadi.</b> Iltimos, boshqa sifatni tanlang yoki birozdan so'ng qayta urinib ko'ring."
+
         try:
-            await status_msg.edit_text(f"❌ Videoni yuborishda xatolik yuz berdi: {e}")
+            await status_msg.edit_text(friendly_msg, parse_mode="HTML")
         except Exception:
             pass
 
