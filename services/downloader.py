@@ -152,12 +152,12 @@ def _build_base_ydl_opts() -> Dict[str, Any]:
         "no_warnings": True,
         "noplaylist": True,
         "check_formats": False,
-        "extractor_retries": 1,
-        "file_access_retries": 1,
-        "fragment_retries": 2,
+        "extractor_retries": 2,
+        "file_access_retries": 2,
+        "fragment_retries": 3,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "android_vr"],
+                "player_client": ["tv_embedded", "android", "web"],
             }
         },
         "http_headers": {
@@ -168,6 +168,18 @@ def _build_base_ydl_opts() -> Dict[str, Any]:
             )
         },
     }
+
+    # Cookies qo'llab-quvvatlash (Render serverlarida YouTube bot blokirovkasini chetlab o'tish uchun)
+    cookie_file = Path("cookies.txt")
+    if cookie_file.exists():
+        opts["cookiefile"] = str(cookie_file)
+    elif os.getenv("YOUTUBE_COOKIES"):
+        tmp_cookie = Path("/tmp/youtube_cookies.txt")
+        try:
+            tmp_cookie.write_text(os.getenv("YOUTUBE_COOKIES"))
+            opts["cookiefile"] = str(tmp_cookie)
+        except Exception as ce:
+            logger.warning(f"YOUTUBE_COOKIES yozishda xatolik: {ce}")
 
     node_bin = get_node_binary()
     if node_bin:
@@ -448,11 +460,6 @@ def _sync_download(
                 "outtmpl": output_template,
                 "progress_hooks": [ytdl_progress_hook],
                 "format": f"best[height<={target_height}]/best",
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["android", "android_vr"],
-                    }
-                },
             })
             if ffmpeg_path:
                 fallback_opts["ffmpeg_location"] = ffmpeg_path
