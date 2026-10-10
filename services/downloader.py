@@ -157,7 +157,7 @@ def _build_base_ydl_opts() -> Dict[str, Any]:
         "fragment_retries": 2,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "ios"],
+                "player_client": ["visionos", "android", "ios"],
             }
         },
         "http_headers": {
@@ -440,7 +440,51 @@ def _sync_download(
 
     except yt_dlp.utils.DownloadError as e:
         error_msg = str(e)
-        logger.error(f"yt-dlp xatoligi: {error_msg}")
+        logger.warning(f"yt-dlp birlamchi yuklash xatosi: {error_msg}. Zaxira mobil mijoz bilan qayta urinilmoqda...")
+        # Zaxira urinish: to'g'ridan-to'g'ri android/ios orqali 'best' formatida
+        try:
+            fallback_opts = _build_base_ydl_opts()
+            fallback_opts.update({
+                "outtmpl": output_template,
+                "progress_hooks": [ytdl_progress_hook],
+                "format": f"best[height<={target_height}]/best",
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "ios"],
+                    }
+                },
+            })
+            if ffmpeg_path:
+                fallback_opts["ffmpeg_location"] = ffmpeg_path
+                fallback_opts["merge_output_format"] = "mp4"
+
+            with yt_dlp.YoutubeDL(fallback_opts) as ydl_fb:
+                info = ydl_fb.extract_info(clean_url, download=True)
+                downloaded_file = None
+                if info and "requested_downloads" in info and info["requested_downloads"]:
+                    downloaded_file = info["requested_downloads"][0].get("filepath")
+                if not downloaded_file or not os.path.exists(downloaded_file):
+                    downloaded_file = ydl_fb.prepare_filename(info)
+                    base_name = os.path.splitext(downloaded_file)[0]
+                    mp4_file = f"{base_name}.mp4"
+                    if os.path.exists(mp4_file):
+                        downloaded_file = mp4_file
+
+                if downloaded_file and os.path.exists(downloaded_file):
+                    processed = process_video_for_mobile(Path(downloaded_file))
+                    return {
+                        "file_path": processed["file_path"],
+                        "thumb_path": processed.get("thumb_path"),
+                        "file_size": processed["file_size"],
+                        "title": info.get("title") or "Video",
+                        "duration": processed["duration"] or info.get("duration") or 0,
+                        "width": processed["width"] or info.get("width") or 1280,
+                        "height": processed["height"] or info.get("height") or target_height,
+                        "uploader": info.get("uploader"),
+                    }
+        except Exception as fb_err:
+            logger.error(f"Zaxira usul ham xato berdi: {fb_err}")
+
         raise DownloadFailedError(f"Yuklab olishda xatolik yuz berdi: {error_msg}")
     except DownloaderException:
         raise
