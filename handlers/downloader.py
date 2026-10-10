@@ -89,6 +89,12 @@ async def handle_url_message(message: Message):
                 f"Sifatlardan birini tanlang 👇"
             )
             await sent_msg.edit_text(updated_text, parse_mode="HTML", reply_markup=keyboard)
+        except DownloadFailedError as err:
+            err_msg = str(err).lower()
+            if "unavailable" in err_msg or "not available" in err_msg:
+                await sent_msg.edit_text("❌ <b>Ushbu video YouTube'da mavjud emas yoki muallif tomonidan o‘chirilgan!</b>", parse_mode="HTML")
+            elif "private" in err_msg:
+                await sent_msg.edit_text("🔒 <b>Ushbu video yopiq (private) profilga tegishli.</b> Yuklab bo‘lmaydi.", parse_mode="HTML")
         except Exception:
             pass
 
@@ -239,13 +245,15 @@ async def handle_quality_choice(call: CallbackQuery):
 
     except Exception as e:
         logger.exception(f"Yuklashda xato: {e}")
-        err_text = str(e)
-        if "sign in to confirm" in err_text.lower():
-            friendly_msg = "❌ <b>YouTube cheklovi:</b> Ushbu video uchun avtorizatsiya talab qilinmoqda."
-        elif "private" in err_text.lower():
-            friendly_msg = "🔒 <b>Ushbu video yopiq (private) hisobga tegishli.</b>"
+        err_text = str(e).lower()
+        if "unavailable" in err_text or "not available" in err_text or "deleted" in err_text:
+            friendly_msg = "❌ <b>Ushbu video YouTube'da mavjud emas yoki muallif tomonidan o‘chirilgan!</b>"
+        elif "private" in err_text:
+            friendly_msg = "🔒 <b>Ushbu video yopiq (private) profilga tegishli.</b> Yuklab bo‘lmaydi."
+        elif "sign in to confirm" in err_text:
+            friendly_msg = "❌ <b>YouTube cheklovi:</b> Ushbu video uchun yosh chegarasi (18+) yoki avtorizatsiya talab qilinadi."
         else:
-            friendly_msg = "❌ <b>Videoni yuklab bo'lmadi.</b> Iltimos, boshqa sifatni tanlang yoki birozdan so'ng qayta urinib ko'ring."
+            friendly_msg = "❌ <b>Videoni yuklab bo‘lmadi.</b> Iltimos, boshqa sifatni tanlang yoki keyinroq qayta urinib ko‘ring."
 
         try:
             await status_msg.edit_text(friendly_msg, parse_mode="HTML")
