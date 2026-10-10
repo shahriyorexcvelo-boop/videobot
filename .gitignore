@@ -1,0 +1,34 @@
+# Virtual muhit
+venv/
+.venv/
+env/
+
+# Python kesh fayllari
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Maxfiy sozlamalar va sessiyalar
+.env
+*.session
+*.session-journal
+
+# Ma'lumotlar bazasi va kesh
+cache.db
+*.db
+
+# Vaqtinchalik yuklab olingan media fayllar
+downloads/
+*.mp4
+*.m4a
+*.webm
+*.part
+*.ytdl
+*.jpg
+*.jpeg
+*.png
+
+# IDE va OS sozlamalari
+.vscode/
+.idea/
+.DS_Store

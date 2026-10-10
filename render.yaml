@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: video-telegram-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: API_ID
+        sync: false
+      - key: API_HASH
+        sync: false
+      - key: PORT
+        value: 8080
+      - key: DOWNLOAD_DIR
+        value: downloads
