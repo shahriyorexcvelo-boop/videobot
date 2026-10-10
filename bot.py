@@ -7,6 +7,7 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import BotCommand, BotCommandScopeDefault
 
 from config import BOT_TOKEN, PORT
 from handlers import main_router
@@ -50,6 +51,19 @@ async def start_web_server():
     logger.info(f"Render.com Web Server {PORT}-portda muvaffaqiyatli ishga tushdi (24/7 rejim)!")
 
 
+async def setup_bot_commands(bot: Bot):
+    """
+    Telegram chat oynasidagi 'Menu' tugmasi va komandalar ro'yxatini sozlaydi.
+    """
+    commands = [
+        BotCommand(command="start", description="🚀 Botni ishga tushirish"),
+        BotCommand(command="help", description="📖 Qo'llanma va yordam"),
+        BotCommand(command="about", description="ℹ️ Bot haqida ma'lumot"),
+    ]
+    await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
+    logger.info("Bot Menu buyruqlari muvaffaqiyatli o'rnatildi (/start, /help, /about)!")
+
+
 async def main():
     logger.info("Bot tizimi ishga tushirilmoqda...")
 
@@ -74,6 +88,9 @@ async def main():
         await bot.delete_webhook(drop_pending_updates=True)
         bot_info = await bot.get_me()
         logger.info(f"Bot muvaffaqiyatli ishga tushdi: @{bot_info.username} (ID: {bot_info.id})")
+
+        # Telegram 'Menu' tugmasi buyruqlarini ro'yxatdan o'tkazish
+        await setup_bot_commands(bot)
 
         # Long-polling orqali yangilanishlarni qabul qilish
         await dp.start_polling(bot)
