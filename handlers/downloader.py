@@ -23,11 +23,37 @@ from services.downloader import (
 )
 from services.cache import media_cache
 from services.telegram_client import send_large_video, send_large_audio
+from config import IS_RENDER
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 URL_SESSIONS: Dict[str, str] = {}
+
+RENDER_YOUTUBE_MSG = (
+    "⏳ <b>YouTube hozircha mavjud emas.</b>\n"
+    "Iltimos, birozdan keyin qayta urinib ko‘ring. Instagram havolalari ishlayapti ✅"
+)
+
+
+def is_youtube_url(url: str) -> bool:
+    return "youtube.com" in url or "youtu.be" in url
+
+
+def resolve_session_url(call: CallbackQuery, session_id: str) -> Optional[str]:
+    """
+    Sessiya xotirada bo'lmasa (bot qayta ishga tushgan yoki Render <-> lokal almashgan),
+    havolani foydalanuvchining asl xabaridan tiklaydi.
+    """
+    url = URL_SESSIONS.get(session_id)
+    if url:
+        return url
+    original = call.message.reply_to_message if call.message else None
+    if original and original.text:
+        url = extract_first_url(original.text)
+        if url:
+            URL_SESSIONS[session_id] = url
+    return url
 
 
 def format_duration(seconds: int) -> str:
@@ -222,7 +248,9 @@ async def process_audio_download(
     except Exception as e:
         logger.exception(f"Audio yuklashda xato: {e}")
         err_text = str(e).lower()
-        if "unavailable" in err_text or "not available" in err_text or "deleted" in err_text:
+        if IS_RENDER and is_youtube_url(url):
+            friendly_msg = RENDER_YOUTUBE_MSG
+        elif "unavailable" in err_text or "not available" in err_text or "deleted" in err_text:
             friendly_msg = "❌ <b>Ushbu video YouTube'da mavjud emas yoki muallif tomonidan o‘chirilgan!</b>"
         elif "private" in err_text:
             friendly_msg = "🔒 <b>Ushbu video yopiq (private) profilga tegishli.</b> Yuklab bo‘lmaydi."
@@ -316,6 +344,8 @@ async def handle_url_message(message: Message):
             )
             await sent_msg.edit_text(updated_text, parse_mode="HTML", reply_markup=keyboard)
         except DownloadFailedError as err:
+            if IS_RENDER and is_youtube_url(url):
+                return  # Render'da YouTube xatolari bloklash sababli; video o'chirilgan deb noto'g'ri yozmaymiz
             err_msg = str(err).lower()
             if "unavailable" in err_msg or "not available" in err_msg:
                 await sent_msg.edit_text("❌ <b>Ushbu video YouTube'da mavjud emas yoki muallif tomonidan o‘chirilgan!</b>", parse_mode="HTML")
@@ -334,7 +364,7 @@ async def handle_audio_choice(call: CallbackQuery):
     parts_data = call.data.split(":")
     session_id = parts_data[1]
 
-    url = URL_SESSIONS.get(session_id)
+    url = resolve_session_url(call, session_id)
     if not url:
         await call.message.edit_text("⚠️ Havola muddati tugagan. Iltimos, havolani qaytadan yuboring.")
         return
@@ -358,7 +388,7 @@ async def handle_quality_choice(call: CallbackQuery):
     quality = int(parts_data[1])
     session_id = parts_data[2]
 
-    url = URL_SESSIONS.get(session_id)
+    url = resolve_session_url(call, session_id)
     if not url:
         await call.message.edit_text("⚠️ Havola muddati tugagan. Iltimos, havolani qaytadan yuboring.")
         return
@@ -495,7 +525,9 @@ async def handle_quality_choice(call: CallbackQuery):
     except Exception as e:
         logger.exception(f"Yuklashda xato: {e}")
         err_text = str(e).lower()
-        if "unavailable" in err_text or "not available" in err_text or "deleted" in err_text:
+        if IS_RENDER and is_youtube_url(url):
+            friendly_msg = RENDER_YOUTUBE_MSG
+        elif "unavailable" in err_text or "not available" in err_text or "deleted" in err_text:
             friendly_msg = "❌ <b>Ushbu video YouTube'da mavjud emas yoki muallif tomonidan o‘chirilgan!</b>"
         elif "private" in err_text:
             friendly_msg = "🔒 <b>Ushbu video yopiq (private) profilga tegishli.</b> Yuklab bo‘lmaydi."

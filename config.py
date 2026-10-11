@@ -17,5 +17,14 @@ DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 PORT: int = int(os.getenv("PORT", "8080"))
 
+# Render.com o'zi avtomatik RENDER=true o'zgaruvchisini o'rnatadi
+IS_RENDER: bool = os.getenv("RENDER", "").lower() == "true"
+
+# Render <-> Lokal navbat almashish (handoff) sozlamalari
+# RENDER_URL faqat lokal .env da kerak (masalan: https://video-telegram-bot.onrender.com)
+RENDER_URL: str = os.getenv("RENDER_URL", "").strip()
+# Ikkala joyda ham (Render env va lokal .env) bir xil bo'lishi shart
+HANDOFF_SECRET: str = os.getenv("HANDOFF_SECRET", "").strip()
+
 # MTProto orqali maksimal fayl hajmi: 2 GB (2048 MB)
 MAX_FILE_SIZE_BYTES: int = 2 * 1024 * 1024 * 1024
